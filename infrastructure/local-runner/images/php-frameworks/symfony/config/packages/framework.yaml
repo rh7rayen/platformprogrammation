@@ -1,0 +1,7 @@
+framework:
+  secret: 'uniexam-isolated-test-template-public-key'
+  test: true
+  http_method_override: false
+  session: false
+  router:
+    utf8: true

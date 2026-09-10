@@ -1,0 +1,1 @@
+{"name":"@uniexam/local-runner","private":true,"type":"module","scripts":{"start":"node --import tsx server.ts","bootstrap":"node --import tsx bootstrap.ts","test":"node --import tsx --test test/*.test.ts","typecheck":"tsc --noEmit -p tsconfig.json"}}

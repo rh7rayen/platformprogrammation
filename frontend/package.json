@@ -1,0 +1,29 @@
+{
+  "name": "@uniexam/frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "predev": "node ../scripts/prepare-monaco.mjs",
+    "prebuild": "node ../scripts/prepare-monaco.mjs",
+    "dev": "next dev --hostname 127.0.0.1",
+    "build": "next build",
+    "start": "next start --hostname 0.0.0.0",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@monaco-editor/react": "4.7.0",
+    "@uniexam/contracts": "0.1.0",
+    "dompurify": "3.4.15",
+    "lucide-react": "0.468.0",
+    "monaco-editor": "0.56.0",
+    "next": "16.3.4",
+    "react": "19.3.0",
+    "react-dom": "19.3.0"
+  },
+  "devDependencies": {
+    "@tailwindcss/postcss": "4.3.3",
+    "@types/react": "19.2.7",
+    "@types/react-dom": "19.2.3",
+    "tailwindcss": "4.3.3"
+  }
+}

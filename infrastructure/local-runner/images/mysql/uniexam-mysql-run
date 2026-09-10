@@ -1,0 +1,13 @@
+#!/bin/bash
+set -euo pipefail
+if [[ $# != 0 || $(id -u) != 65534 || ! -r /tmp/mysql-student.cnf ]]; then
+  printf '%s\n' 'Le moteur MySQL n’est pas initialisé.' >&2
+  exit 1
+fi
+# In noninteractive binary mode the MySQL client disables local commands
+# (including system, source, reconnect and file output); charset/delimiter remain
+# available for normal SQL scripts and stored procedures. LOCAL INFILE is disabled
+# both here and on mysqld; the database account has no FILE/global privileges.
+exec mysql --defaults-file=/tmp/mysql-student.cnf --no-login-paths --batch --raw \
+  --skip-column-names --binary-mode --skip-reconnect --local-infile=0 \
+  --connect-timeout=2 --max-allowed-packet=1M < /work/query.sql

@@ -1,0 +1,41 @@
+import {test,expect,request} from '@playwright/test';
+import { TEST_ORIGIN } from './test-origin';
+const u='/api/universities/10000000-0000-4000-8000-000000000001';
+test('Python editor: teacher creation, typing, autosave, reload, QCM, submission and teacher copy',async({page})=>{
+  const teacher=await request.newContext({baseURL:TEST_ORIGIN,extraHTTPHeaders:{origin:TEST_ORIGIN}});
+  try {
+    expect((await teacher.post('/api/auth/demo',{data:{user_id:'20000000-0000-4000-8000-000000000002'}})).ok()).toBeTruthy();
+    const title=`Python · Test navigateur ${Date.now()}`;
+    const creation=await teacher.post(`${u}/assessments`,{data:{title,description:'Copie réservée au test automatisé.',course_offering_id:'60000000-0000-4000-8000-000000000001',kind:'PRACTICAL',opens_at:new Date(Date.now()-60000).toISOString(),closes_at:new Date(Date.now()+3600000).toISOString(),duration_minutes:30,requires_code:false,allow_paste:false,questions:[{type:'CODE',title:'Mon programme',statement:'Écrivez un programme Python.',points:15,runtime:'python',starter_code:'# Mon programme\n'},{type:'SINGLE_CHOICE',title:'Longueur de liste',statement:'Quelle est la longueur de [1, 2, 3] ?',points:5,options:[{id:'a',text:'3'},{id:'b',text:'6'}],expected_option_id:'a'}]}});
+    expect(creation.ok()).toBeTruthy();const assessment=(await creation.json()).id;
+    expect((await teacher.post(`${u}/assessments/${assessment}/publish`,{data:{}})).ok()).toBeTruthy();
+    await page.goto('/?view=exams');await page.getByRole('button',{name:/Nour Mansour/}).click();
+    const card=page.getByRole('article').filter({has:page.getByRole('heading',{name:title,exact:true})});
+    await card.getByRole('button',{name:'Ouvrir mon devoir'}).click();await page.getByRole('button',{name:'Commencer le devoir',exact:true}).click();
+    await expect(page.getByRole('textbox',{name:'Code Python',exact:true})).toBeVisible();
+    await expect(page.getByRole('button',{name:'Exécuter',exact:true})).toBeDisabled();
+    const input=page.getByRole('textbox',{name:'Code Python',exact:true});
+    await input.press('Control+End');await input.pressSequentially('print(42)');
+    await expect(page.locator('.exam-person [role="status"]')).toHaveText('Enregistré');
+    const attempt=new URL(page.url()).searchParams.get('attempt');
+    const before=await (await page.request.get(`${u}/attempts/${attempt}`)).json();
+    expect(before.answers[0].answer_text).toContain('print(42)');
+    await page.reload();await expect(page.getByRole('textbox',{name:'Code Python',exact:true})).toBeVisible();
+    const after=await (await page.request.get(`${u}/attempts/${attempt}`)).json();expect(after.attempt.deadline).toBe(before.attempt.deadline);
+    await expect(page.locator('.monaco-editor .view-lines')).toContainText('print(42)');
+    await page.screenshot({path:'test-results/editor-python-desktop.png',fullPage:true});
+    await page.getByRole('button',{name:/2 Longueur de liste/}).click();await page.getByRole('radio',{name:'3',exact:true}).check();
+    await page.getByRole('button',{name:'Remettre ma copie',exact:true}).click();await page.getByRole('button',{name:'Confirmer la remise'}).click();
+    await expect(page.getByText('Votre copie a bien été remise.',{exact:true})).toBeVisible();
+    await expect(page.getByRole('radio',{name:'3',exact:true})).toBeDisabled();
+    const copies=await (await teacher.get(`${u}/assessments/${assessment}/submissions`)).json();expect(copies.data).toHaveLength(1);expect(copies.data[0].total_score).toBe(5);
+    const copy=await (await teacher.get(`${u}/assessments/${assessment}/submissions/${copies.data[0].id}`)).json();expect(copy.answers[0].answer_text).toContain('print(42)');
+    await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:/1 Mon programme/}).click();
+    await expect(page.getByRole('button',{name:'Exécuter',exact:true})).toBeDisabled();
+    await expect(page.getByRole('button',{name:'Exécuter',exact:true})).toHaveAttribute('title',/copie a été remise/);
+    await expect(page.locator('.code-terminal')).toContainText('Exécution verrouillée');
+    await expect(page.locator('.code-terminal')).toContainText('Cette copie a été remise');
+    expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBeTruthy();
+    await page.screenshot({path:'test-results/editor-python-mobile.png',fullPage:true});
+  } finally {await teacher.dispose();}
+});

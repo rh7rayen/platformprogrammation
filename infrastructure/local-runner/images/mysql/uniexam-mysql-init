@@ -1,0 +1,58 @@
+#!/bin/bash
+set -euo pipefail
+umask 077
+if [[ $# != 0 || $(id -u) != 65534 || -e /tmp/mysql ]]; then
+  printf '%s\n' 'Initialisation MySQL refusée.' >&2
+  exit 1
+fi
+
+# Fixed options only. These paths are inside the bounded per-job tmpfs.
+# No student source is read, sourced, or interpolated during initialization.
+mkdir /tmp/mysql
+common=(--no-defaults --datadir=/tmp/mysql --innodb-buffer-pool-size=64M
+  --innodb-redo-log-capacity=16M --innodb-log-buffer-size=8M
+  --performance-schema=OFF --mysqlx=OFF --skip-log-bin
+  --innodb-temp-data-file-path=ibtmp1:12M:autoextend:max:32M)
+if ! mysqld "${common[@]}" --initialize-insecure --log-error=/tmp/mysql-init.log; then
+  tail -c 12000 /tmp/mysql-init.log >&2 || true
+  exit 1
+fi
+server_options=(--skip-networking --socket=/tmp/mysql.sock
+  --pid-file=/tmp/mysql.pid --log-error=/tmp/mysql-server.log
+  --max-connections=5 --thread-cache-size=0 --table-open-cache=128
+  --table-definition-cache=400 --max-allowed-packet=1M --local-infile=0
+  --secure-file-priv=NULL --skip-symbolic-links --skip-name-resolve
+  --event-scheduler=OFF --general-log=OFF --slow-query-log=OFF)
+mysqld "${common[@]}" "${server_options[@]}" >/tmp/mysql-boot.log 2>&1 &
+server_pid=$!
+ready=0
+for ((attempt=0; attempt<800; attempt++)); do
+  if ! kill -0 "$server_pid" 2>/dev/null; then break; fi
+  if mysqladmin --no-defaults --protocol=SOCKET --socket=/tmp/mysql.sock --user=root ping >/dev/null 2>&1; then ready=1; break; fi
+  sleep 0.1
+done
+if [[ $ready != 1 ]]; then
+  printf '%s\n' 'Le serveur MySQL temporaire ne démarre pas.' >&2
+  tail -c 12000 /tmp/mysql-server.log >&2 || true
+  exit 1
+fi
+
+# Random values are hex-only, generated in the container; neither password is
+# emitted. The administrator password is never retained in a file or environment.
+student_password=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+administrator_password=$(od -An -N24 -tx1 /dev/urandom | tr -d ' \n')
+[[ $student_password =~ ^[0-9a-f]{48}$ && $administrator_password =~ ^[0-9a-f]{48}$ ]]
+if ! mysql --no-defaults --protocol=SOCKET --socket=/tmp/mysql.sock --user=root --batch --skip-column-names <<SQL
+CREATE DATABASE exam CHARACTER SET utf8mb4;
+CREATE USER 'student'@'localhost' IDENTIFIED BY '$student_password';
+GRANT SELECT, INSERT, UPDATE, DELETE, CREATE, DROP, ALTER, INDEX, CREATE VIEW, SHOW VIEW, CREATE ROUTINE, ALTER ROUTINE, EXECUTE, TRIGGER, CREATE TEMPORARY TABLES ON exam.* TO 'student'@'localhost';
+ALTER USER 'root'@'localhost' IDENTIFIED BY '$administrator_password';
+SQL
+then
+  printf '%s\n' 'Le compte étudiant MySQL ne peut pas être préparé.' >&2
+  exit 1
+fi
+unset administrator_password
+printf '[client]\nuser=student\npassword=%s\nprotocol=SOCKET\nsocket=/tmp/mysql.sock\ndatabase=exam\n' "$student_password" > /tmp/mysql-student.cnf
+unset student_password
+chmod 0600 /tmp/mysql-student.cnf

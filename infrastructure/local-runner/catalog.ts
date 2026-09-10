@@ -1,0 +1,26 @@
+import {reactAngularRuntimes} from './react-angular.js';
+import {phpFrameworkRuntimes} from './php-frameworks.js';
+import {mysqlRuntime} from './mysql.js';
+export type RuntimeId='php'|'python'|'java'|'javascript'|'typescript'|'c'|'cpp'|'csharp'|'go'|'rust'|'ruby'|'bash'|'sql'|'react'|'angular'|'symfony'|'laravel'|'mysql'|'oracle_plsql';
+export type Runtime={id:RuntimeId;version:string;image:string;filename:string;compile?:string[][];initialize?:string[];profile?:'mysql';previewFile?:'/tmp/preview.html';run:string[];files?:Record<string,string>;env?:string[];sample:string;build?:string};
+// Only these trusted argv arrays become Docker commands. Student source is a file,
+// never a host-shell argument, project file, image name, or compiler option.
+export const runtimes:readonly Runtime[]=[
+  {id:'php',version:'8.4',image:'php:8.4-cli-alpine3.22',filename:'main.php',run:['php','-d','display_errors=stderr','/work/main.php'],sample:'<?php echo "Bonjour!\\n";'},
+  {id:'python',version:'3.13',image:'python:3.13-alpine3.22',filename:'main.py',run:['python','-I','-B','/work/main.py'],sample:'print("Bonjour!")'},
+  {id:'java',version:'21',image:'eclipse-temurin:21-jdk-alpine',filename:'Main.java',compile:[['javac','-J-Xmx384m','-d','/tmp','/work/Main.java']],run:['java','-Xmx384m','-XX:ActiveProcessorCount=1','-cp','/tmp','Main'],sample:'public class Main { public static void main(String[] args) { System.out.println("Bonjour!"); }}'},
+  {id:'javascript',version:'24',image:'uniexam/tools:node24-ts5.9.3-v1',filename:'main.js',run:['node','--max-old-space-size=384','/work/main.js'],sample:'console.log("Bonjour!");',build:'tools'},
+  {id:'typescript',version:'5.9.3 / Node 24',image:'uniexam/tools:node24-ts5.9.3-v1',filename:'main.ts',compile:[['tsc','--target','ES2022','--module','commonjs','--strict','--skipLibCheck','--typeRoots','/opt/types/node_modules/@types','--outDir','/tmp','/work/main.ts']],run:['node','--max-old-space-size=384','/tmp/main.js'],sample:'const message: string = "Bonjour!"; console.log(message);',build:'tools'},
+  {id:'c',version:'14',image:'gcc:14-bookworm',filename:'main.c',compile:[['gcc','-std=c17','-O0','-Wall','/work/main.c','-o','/tmp/program']],run:['/tmp/program'],sample:'#include <stdio.h>\nint main(void){puts("Bonjour!");return 0;}'},
+  {id:'cpp',version:'14',image:'gcc:14-bookworm',filename:'main.cpp',compile:[['g++','-std=c++17','-O0','-Wall','/work/main.cpp','-o','/tmp/program']],run:['/tmp/program'],sample:'#include <iostream>\nint main(){std::cout << "Bonjour!" << std::endl;}'},
+  {id:'csharp',version:'8.0',image:'mcr.microsoft.com/dotnet/sdk:8.0-alpine3.22',filename:'Main.cs',env:['DOTNET_CLI_HOME=/tmp','DOTNET_NOLOGO=1','DOTNET_SKIP_FIRST_TIME_EXPERIENCE=1','DOTNET_CLI_TELEMETRY_OPTOUT=1','DOTNET_CLI_WORKLOAD_UPDATE_NOTIFY_DISABLE=true','DOTNET_EnableDiagnostics=0','NUGET_PACKAGES=/tmp/packages'],files:{'NuGet.Config':'<configuration><packageSources><clear /></packageSources></configuration>','App.csproj':'<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><OutputType>Exe</OutputType><TargetFramework>net8.0</TargetFramework><EnableDefaultCompileItems>false</EnableDefaultCompileItems><BaseIntermediateOutputPath>/tmp/obj/</BaseIntermediateOutputPath><OutputPath>/tmp/out/</OutputPath><UseAppHost>false</UseAppHost><NuGetAudit>false</NuGetAudit></PropertyGroup><ItemGroup><Compile Include="/work/Main.cs" /></ItemGroup></Project>'},compile:[['dotnet','restore','/work/App.csproj','--configfile','/work/NuGet.Config','--packages','/tmp/packages','--ignore-failed-sources','--disable-parallel','-p:BaseIntermediateOutputPath=/tmp/obj/','-p:MSBuildProjectExtensionsPath=/tmp/obj/'],['dotnet','build','/work/App.csproj','--no-restore','--output','/tmp/out','-p:BaseIntermediateOutputPath=/tmp/obj/','-p:MSBuildProjectExtensionsPath=/tmp/obj/','-p:UseSharedCompilation=false','--nologo','--verbosity','quiet']],run:['dotnet','/tmp/out/App.dll'],sample:'using System; class Program { static void Main() { Console.WriteLine("Bonjour!"); }}'},
+  {id:'go',version:'1.24',image:'golang:1.24-alpine3.22',filename:'main.go',env:['GOCACHE=/tmp/go-cache','GOPATH=/tmp/go','GOTOOLCHAIN=local','GOPROXY=off','GO111MODULE=off','CGO_ENABLED=0'],compile:[['go','build','-o','/tmp/program','/work/main.go']],run:['/tmp/program'],sample:'package main\nimport "fmt"\nfunc main(){fmt.Println("Bonjour!")}'},
+  {id:'rust',version:'1.85',image:'rust:1.85-slim-bookworm',filename:'main.rs',env:['CARGO_HOME=/tmp/cargo'],compile:[['rustc','--edition','2021','/work/main.rs','-o','/tmp/program']],run:['/tmp/program'],sample:'fn main(){println!("Bonjour!");}'},
+  {id:'ruby',version:'3.4',image:'ruby:3.4-alpine3.22',filename:'main.rb',run:['ruby','/work/main.rb'],sample:'puts "Bonjour!"'},
+  {id:'bash',version:'Bash / Alpine 3.22',image:'uniexam/tools:node24-ts5.9.3-v1',filename:'main.sh',run:['bash','--noprofile','--norc','/work/main.sh'],sample:'printf "Bonjour!\\n"',build:'tools'},
+  {id:'sql',version:'SQLite / Alpine 3.22',image:'uniexam/tools:node24-ts5.9.3-v1',filename:'query.sql',run:['sqlite3','-batch','-bail','/tmp/exam.sqlite','.read /work/query.sql'],sample:"SELECT 'Bonjour!';",build:'tools'},
+  ...reactAngularRuntimes,
+  ...phpFrameworkRuntimes,
+  mysqlRuntime,
+];
+export function runtime(id:string):Runtime|undefined{return runtimes.find(item=>item.id===id);}
